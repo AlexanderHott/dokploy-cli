@@ -45,7 +45,7 @@ describe("generator", () => {
 		}
 	});
 
-	it("number of apiPost/apiGet calls should match valid endpoints", () => {
+	it("number of API calls should match valid endpoints", () => {
 		const spec = JSON.parse(fs.readFileSync(specPath, "utf8"));
 		const content = fs.readFileSync(generatedPath, "utf8");
 
@@ -57,7 +57,30 @@ describe("generator", () => {
 			if (group && rest.length > 0) validEndpoints++;
 		}
 
-		const apiCalls = (content.match(/await api(Post|Get)\(/g) || []).length;
+		const apiCalls = (content.match(/await api(Post|Get|PostForm)\(/g) || [])
+			.length;
 		expect(apiCalls).toBe(validEndpoints);
+	});
+
+	it("generates multipart options and file uploads", () => {
+		const content = fs.readFileSync(generatedPath, "utf8");
+
+		expect(content).toContain(
+			'await apiPostForm("application.dropDeployment", opts, ["zip"])',
+		);
+		expect(content).toContain(
+			'await apiPostForm("docker.uploadFileToContainer", opts, ["file"])',
+		);
+
+		const commandStart = content.indexOf(".command('drop-deployment')");
+		const commandEnd = content.indexOf("\n\t\t});", commandStart);
+		const command = content.slice(commandStart, commandEnd);
+		expect(command).toContain(
+			".requiredOption('--applicationId <value>', 'applicationId')",
+		);
+		expect(command).toContain(".requiredOption('--zip <value>', 'zip')");
+		expect(command).toContain(
+			".option('--dropBuildPath <value>', 'dropBuildPath')",
+		);
 	});
 });

@@ -24,7 +24,10 @@ function loadEnvFile(): void {
 		const eqIndex = trimmed.indexOf("=");
 		if (eqIndex === -1) continue;
 		const key = trimmed.slice(0, eqIndex).trim();
-		const value = trimmed.slice(eqIndex + 1).trim().replace(/^["']|["']$/g, "");
+		const value = trimmed
+			.slice(eqIndex + 1)
+			.trim()
+			.replace(/^["']|["']$/g, "");
 		if (!process.env[key]) {
 			process.env[key] = value;
 		}
@@ -93,13 +96,40 @@ export async function apiPost(
 	return response.data?.result?.data?.json ?? response.data;
 }
 
+export async function apiPostForm(
+	endpoint: string,
+	data: Record<string, unknown>,
+	fileFields: string[],
+) {
+	const client = createClient();
+	const fileFieldNames = new Set(fileFields);
+
+	for (const field of fileFieldNames) {
+		const value = data[field];
+		if (value !== undefined && !fs.existsSync(String(value))) {
+			throw new Error(`File not found: ${value}`);
+		}
+	}
+
+	const formData: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(data)) {
+		if (value === undefined) continue;
+		formData[key] = fileFieldNames.has(key)
+			? fs.createReadStream(String(value))
+			: value;
+	}
+
+	const response = await client.postForm(`/trpc/${endpoint}`, formData);
+	return response.data?.result?.data?.json ?? response.data;
+}
+
 export async function apiGet(
 	endpoint: string,
 	params?: Record<string, unknown>,
 ) {
 	const client = createClient();
 	const query = params
-		? `?input=${encodeURIComponent(JSON.stringify(params))}`
+		? `?input=${encodeURIComponent(JSON.stringify({ json: params }))}`
 		: "";
 	const response = await client.get(`/trpc/${endpoint}${query}`);
 	return response.data?.result?.data?.json ?? response.data;
